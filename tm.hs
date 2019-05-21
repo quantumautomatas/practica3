@@ -63,7 +63,7 @@ encode m = let sts = getStates m; g = getGamma m; tr = getDelta m in
 
 encodeTrans :: [State] -> Alf -> Trans -> String
 encodeTrans sts g ((st, s), (nst, ns, d)) = 
-    "0"++(enc st sts)++"0"++ (enc s g)++"0"++ (enc nst sts)++"0"++ (enc ns g, k)++"0"
+    "0"++(enc st sts)++"0"++ (enc s g)++"0"++ (enc nst sts)++"0"++ k++"0"
     where k = 
             case d of
                 Izq -> "11"
