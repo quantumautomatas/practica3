@@ -138,7 +138,8 @@ fm'aabbcc' = compute m1 "aabbcc"
 --codificada y regresa la MaqT que representa.
 
 -- se supone que la máquina de Turing estaba en forma estándar antes de ser
--- codificada, esto es que su estado incial era q0 y los finales eran [q1]
+-- codificada, esto es que su estado incial era q0, los finales eran [q1]
+-- y que el símbolo en blanco era el primero en la lista del alfabeto de la cinta
 decode :: String -> MaqT
 decode str = let enDel = map decodeTrans (getCodedTrans str)
             in MT {
@@ -160,7 +161,7 @@ extractStates del = foldr (\((st, _), (nst, _, _)) xs -> union (union [st] [nst]
 extractGamma :: [Trans] -> Alf
 extractGamma del = foldr (\((_, str), (_, ns, _)) xs -> union (union [str] [ns]) xs) [] del
 
--- Al ser '1' el primer caracter usado en la decodifcación, '0' es el blanco
+-- Al ser '0' el primer caracter usado en la decodifcación, '0' es el blanco
 extractSigma :: [Trans] -> Alf
 extractSigma del = [sy | sy <- (extractGamma del), sy /= '0']
 
@@ -196,10 +197,10 @@ getPartsAux sx (x:xs) = getPartsAux (sx++[x]) xs
 decodeState :: String -> State
 decodeState st = Q ((length st) - 1)
 
--- caracteres en ASCII a partir de '1'
--- '0' está reservado para el blanco
+-- caracteres en ASCII a partir de '0'
+-- '0' siempre es el blanco
 decodeSymbol :: String -> Symbol
-decodeSymbol str = chr ((length str) + 48) 
+decodeSymbol str = chr ((length str) + 47) 
 
 decodeDir :: String -> Dir
 decodeDir "1" = Der
