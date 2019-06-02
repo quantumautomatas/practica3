@@ -260,23 +260,13 @@ addToTape t n sy
     | n < 0 = let nchunk = replicate (-n) sy in T {tp = nchunk ++ (tp t), z = (z t) - n}
     | otherwise = let nchunk = replicate n sy in T {tp = (tp t) ++ nchunk, z = (z t)}
 
-
-{--enumTrans :: Delta -> [State] -> Alf -> [Trans]
-enumTrans del qs alf = foldr (\x xs -> enumTransAux del x xs) [] [(p, sy) | p <- qs, sy <- alf]
-
-enumTransAux :: Delta -> (State, Symbol) -> [Trans] -> [Trans]
-enumTransAux del (p, sy) ts = 
-    let r = del p sy
-        in case r of
-            Nothing -> ts
-            Just t -> (t:ts)--}
 -- Si una lista de tuplas representa una función
 isFunc :: (Eq a, Eq b) => [(a, b)] -> Bool
 isFunc [] = True
 isFunc  ((xi, _):xs) = 
     let r = evalFunc xs xi in
         case r of
-            Nothing -> True
+            Nothing -> isFunc xs
             Just _ -> False
 
 evalFunc :: (Eq a, Eq b) => [(a, b)] -> a -> Maybe b
