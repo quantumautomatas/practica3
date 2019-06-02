@@ -45,6 +45,7 @@ valida :: MaqT -> Bool
 valida mt  =
     elem (b mt) (g mt) && not (elem (b mt) (s mt)) && elem (q0 mt) (q mt) 
     && subset (s mt) (g mt) && subset (f mt) (q mt) && isFunc (d mt)
+    && subset (extractGamma (d mt)) (g mt) && subset (extractStates (d mt)) (q mt)
 
 --2. Definir la función compute que recibe una MaqT, una cadena e imprime
 --el procesamiento formal de la cadena con configuraciones.
@@ -150,20 +151,22 @@ m1 = MT {
 }
 
 -- Formalización
-process :: [Config]
-process = compute m1 "aabbcc"
+fm'aabbcc' :: [Config]
+fm'aabbcc' = compute m1 "aabbcc"
 
 --}
 --Extra
 --1. Definir la función decode que recibe una String representando una máquina
 --codificada y regresa la MaqT que representa.
 
+-- se supone que la máquina de Turing estaba en forma estándar antes de ser
+-- codificada, esto es que su estado incial era q0 y los finales eran [q1]
 decode :: String -> MaqT
 decode str = let del = map decodeTrans (getCodedTrans str)
             in MT {
-                    q = extractStates del, 
+                    q = union (extractStates del) [Q 0, Q 1], -- q0 y q1 siempre presentes
                     s = extractSigma del, 
-                    g = extractGamma del, 
+                    g = union (extractGamma del) ['0'], -- siempre el blanco
                     d = del,
                     b = '0',
                     q0 = Q 0, 
@@ -171,17 +174,15 @@ decode str = let del = map decodeTrans (getCodedTrans str)
                 }                           
 
 -- Sacando los estado desde la función de transición
--- Se supone que q0 es el inicial y q1 el final
 extractStates :: Delta -> [State]
-extractStates del = foldr (\((st, _), (nst, _, _)) xs -> union (union [st] [nst]) xs) [Q 0, Q 1] del
+extractStates del = foldr (\((st, _), (nst, _, _)) xs -> union (union [st] [nst]) xs) [] del
 
 -- Sacando el alfabeto de la cinta la función de transición
 -- Se toma a '0' como blanco
 extractGamma :: Delta -> Alf
-extractGamma del = foldr (\((_, str), (_, ns, _)) xs -> union (union [str] [ns]) xs) ['0'] del
+extractGamma del = foldr (\((_, str), (_, ns, _)) xs -> union (union [str] [ns]) xs) [] del
 
--- Al ser '1' el primer caracter 
--- usado en la decodifcación, '0' es el blanco
+-- Al ser '1' el primer caracter usado en la decodifcación, '0' es el blanco
 extractSigma :: Delta -> Alf
 extractSigma del = [sy | sy <- (extractGamma del), sy /= '0']
 
@@ -197,12 +198,8 @@ getCodedTransAux sx (x:xs) = getCodedTransAux (sx++[x]) xs
 
 decodeTrans :: String -> Trans
 decodeTrans str = 
-    let (xs1, xs2, xs3, xs4, xs5) = splitTrans str
+    let (xs1, xs2, xs3, xs4, xs5) = tuple5 (getParts str)
     in ((decodeState xs1, decodeSymbol xs2), (decodeState xs3, decodeSymbol xs4, decodeDir xs5))
-
--- Parte una cadena que codifica a una transición en sus diferentes partes
-splitTrans :: String -> (String, String, String, String, String)
-splitTrans str = tuple5 (getParts str)
 
 tuple5 :: [a] -> (a, a, a, a, a)
 tuple5 [a1, a2, a3, a4, a5] = (a1, a2, a3, a4, a5)
