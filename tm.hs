@@ -5,72 +5,99 @@ import Data.List
 --MaqT con base en la definición formal de una máquina de Turing estándar.
 
 -- Tipo para los estados de la máquina.
-type State = Int
+data State = Q Int deriving (Show, Eq, Ord)
 
---  Tipo para los símbolos
-type Symb = Char
-
--- Tipo para los alfabetos
-type Alf = [Symb]
+--  Sinónimo para los símbolos
+type Symbol = Char
 
 -- Tipo para las direcciones
-data Dir = Izq | Der | Est
+data Dir = Izq | Der | Est deriving (Eq)
 
--- Tipo para las transiciones
-type Trans = ((State, Symb), (State, Symb, Dir))
+instance Show Dir where
+    show Izq = "<-"
+    show Der = "->"
+    show Est = "--"
 
--- Tipo para la función de transición
+-- Sinónimos para los alfabetos
+type Alf = [Symbol]
+
+-- Sinónimo para las transiciones
+type Trans = ((State, Symbol), (State, Symbol, Dir)) 
+
+-- Sinónimo para la función de transición
+-- Al ser una función parcial, se define sólo como el conjunto de transiciones
+-- que la representan.
 type Delta = [Trans]
 
 -- Tipo de máquina de Turing
-type MaqT = ([State], Alf, Symb, Alf, State, [State], Delta)
+data MaqT = MT {q::[State], s::Alf, g::Alf, d::Delta, b::Symbol, q0::State, f::[State]} deriving (Show, Eq)
+-- q: conjunto de estados
+-- s: alfabeto del lenguaje
+-- g: alfabeto de la cinta
+-- d: función de transición
+-- q0: estado inicial
+-- b: símbolo en blanco
+-- f: conjunto de estados finales
+
+-- Restricciones entre los diferentes componentes de MaqT que no se puede
+-- restringir solo con el tipo
+valida :: MaqT -> Bool
+valida mt  =
+    elem (b mt) (g mt) && not (elem (b mt) (s mt)) && elem (q0 mt) (q mt) 
+    && subset (s mt) (g mt) && subset (f mt) (q mt) && isFunc (d mt)
 
 --2. Definir la función compute que recibe una MaqT, una cadena e imprime
 --el procesamiento formal de la cadena con configuraciones.
 
-type Config = (State , String , Int)
+data Tape = T {tp::String, z::Int} deriving (Eq)
 
-compute :: MaqT -> String -> [ Config ]
-compute m s
-    | not (valida m) = error "máquina inválida"
-    | elem (getBlank m) s = error "cadena inválida"
-    | otherwise = deltaGen (getDelta m) [(getInit m, s, 0)] (getBlank m)
+instance Show Tape where
+    show t = "(" ++ (show (tp t)) ++ ", " ++ (show ( z t)) ++ ")"
 
-deltaGen :: Delta -> [Config] -> Symb -> [Config]
-deltaGen _ [] _ = error "Configuración inválida"
-deltaGen d conf@((st, s, n):_) b =
-    let r = applyDelta d (st, getSymb s n b) in 
+type Config = (State , Tape , Int)
+
+compute :: MaqT -> String -> [Config]
+compute mt str
+    | not (valida mt) = error "máquina inválida"
+    | elem (b mt) str || not (subset str (s mt)) = error "cadena inválida"
+    | otherwise = deltaGen mt [(q0 mt, T {tp = str, z = 0}, 0)]
+
+-- Generación de la lista de configuraciones
+deltaGen :: MaqT -> [Config] -> [Config]
+deltaGen _ [] = error "Configuración inválida"
+deltaGen mt conf@((qn, t, n):_) =
+    let (rs, nt) = getSymbol t n (b mt); r = applyDelta (d mt) (qn, rs) in 
         case r of
             [] -> conf
-            (nst, ns, dir):_ -> deltaGen d ((nst, writeSymb ns s n, nn):conf) b
+            (qn', ns, dir):_ -> deltaGen mt ((qn', nnt, nn):conf)
                 where nn = case dir of
                             Izq -> n - 1
                             Der -> n + 1
-                            Est -> n                          
+                            Est -> n
+                      ; (_, nnt) = getSymbol (writeSymbol nt n ns (b mt)) nn (b mt)
 
 
-applyDelta :: Delta -> (State, Symb) -> [(State, Symb, Dir)]
-applyDelta d (st, symb) = [(nst, ns, nd) | ((pst, ps),(nst, ns, nd)) <- d, pst == st, symb == ps]
+applyDelta :: Delta -> (State, Symbol) -> [(State, Symbol, Dir)]
+applyDelta del (st, symbol) = [(nst, ns, nd) | ((pst, ps),(nst, ns, nd)) <- del, pst == st, symbol == ps]
 
 --3. Definir la función accept que recibe una MaqT, una cadena y dice
 --si la cadena es aceptada por la máquina de Turing.
 
 accept :: MaqT -> String -> Bool
-accept m s = elem f (getFinal m) where (f, _, _):_ = compute m s
+accept mt str = elem qk (f mt) where (qk, _, _):_ = compute mt str
 
 
 --4. Definir la función encode que recibe una MaqT y la codifica para
 --pasarla como entrada de la Máquina Universal.
 
 encode :: MaqT -> String
-encode m = let sts = getStates m; g = getGamma m; tr = getDelta m in
-    foldr (\x xs -> x++"0"++xs) "" (map (encodeTrans sts g) tr)
+encode mt = foldr (\x xs -> x ++ xs) "" (map (encodeTrans (q mt) (g mt)) (d mt))
 
 encodeTrans :: [State] -> Alf -> Trans -> String
-encodeTrans sts g ((st, s), (nst, ns, d)) = 
-    "0"++(enc st sts)++"0"++ (enc s g)++"0"++ (enc nst sts)++"0"++ (enc ns g) ++ "0" ++ k++"0"
+encodeTrans qs gs ((p, str), (q', ns, dir)) = 
+    "0"++(enc p qs)++"0"++ (enc str gs)++"0"++ (enc q' qs)++"0"++ (enc ns gs) ++ "0" ++ k ++"0"
     where k = 
-            case d of
+            case dir of
                 Izq -> "11"
                 Der -> "1"
                 Est -> "111"
@@ -85,86 +112,125 @@ enc a as =
 
 --5. Utilizando el tipo de dato algebraico MaqT definir la máquina de Turing
 --que acepte el lenguaje L = {a^n b^n c^n } y mostrar la formalización de la cadena aabbcc
-gamma :: Alf
-gamma = ['a', 'b', 'c', '_', 'X']
 
-blank :: Symb
-blank = '_'
+-- Idea
+-- q0: busca la primera 'a' y la marca
+-- q1: busca la primera 'b' y la marca
+-- q2: busca la primera 'c' y la marca
+-- q3: se regresa en la cadena hasta la primera 'a' que encuentre
+-- q4: recorre la cadena revisando que todos los símbolo estén marcados
 
-sigma :: Alf
-sigma = ['a', 'b', 'c']
+delta :: Delta
+delta = [
+    ((Q 0, 'X'), (Q 0, 'X', Der)),
+    ((Q 0, 'a'), (Q 1, 'X', Der)),
+    ((Q 1, 'a'), (Q 1, 'a', Der)),
+    ((Q 1, 'X'), (Q 1, 'X', Der)),
+    ((Q 1, 'b'), (Q 2, 'X', Der)),
+    ((Q 2, 'b'), (Q 2, 'b', Der)),
+    ((Q 2, 'X'), (Q 2, 'X', Der)),
+    ((Q 2, 'c'), (Q 3, 'X', Est)),
+    ((Q 3, 'X'), (Q 3, 'X', Izq)),
+    ((Q 3, 'b'), (Q 3, 'b', Izq)),
+    ((Q 3, 'a'), (Q 0, 'a', Est)),
+    ((Q 3, '_'), (Q 4, '_', Der)),
+    ((Q 4, 'X'), (Q 4, 'X', Der)),
+    ((Q 4, '_'), (Q 0, '_', Est))
+    ]
 
-i :: State
-i = 0
+m1 :: MaqT
+m1 = MT {
+    q = [Q 0, Q 1, Q 2, Q 3, Q 4],
+    s = ['a', 'b', 'c'],
+    g = ['a', 'b', 'c', '_', 'X'],
+    d = delta,
+    b = '_',
+    q0 = Q 0,
+    f = [Q 0]
+}
 
+-- Formalización
+process :: [Config]
+process = compute m1 "aabbcc"
+
+--}
 --Extra
 --1. Definir la función decode que recibe una String representando una máquina
 --codificada y regresa la MaqT que representa.
 
 decode :: String -> MaqT
-decode s = let d = decodeTransAll s 
-            in (extractStates d, extractGamma d, 'a', extractSigma d, 0, extractFinal d, d)
-                
+decode str = let del = map decodeTrans (getCodedTrans str)
+            in MT {
+                    q = extractStates del, 
+                    s = extractSigma del, 
+                    g = extractGamma del, 
+                    d = del,
+                    b = '0',
+                    q0 = Q 0, 
+                    f = [Q 1]
+                }                           
 
+-- Sacando los estado desde la función de transición
+-- Se supone que q0 es el inicial y q1 el final
 extractStates :: Delta -> [State]
-extractStates d = foldr (\((st, _), (nst, _, _)) xs -> union [st, nst] xs) [] d
+extractStates del = foldr (\((st, _), (nst, _, _)) xs -> union (union [st] [nst]) xs) [Q 0, Q 1] del
 
+-- Sacando el alfabeto de la cinta la función de transición
+-- Se toma a '0' como blanco
 extractGamma :: Delta -> Alf
-extractGamma d = foldr (\((_, s), (_, ns, _)) xs -> union [s, ns] xs) [] d
+extractGamma del = foldr (\((_, str), (_, ns, _)) xs -> union (union [str] [ns]) xs) ['0'] del
 
+-- Al ser '1' el primer caracter 
+-- usado en la decodifcación, '0' es el blanco
 extractSigma :: Delta -> Alf
-extractSigma d = (extractGamma d) \\ ['a'] -- Al ser 'a' el caracter con valor ASCII, es el blanco
-
-extractFinal :: Delta -> [State]
-extractFinal d = [foldr (\((st, _), (nst, _, _)) xs -> max (max st nst) xs) (-1) d]
-
-decodeTransAll :: String -> Delta
-decodeTransAll s = map decodeTrans (getCodedTrans s)
+extractSigma del = [sy | sy <- (extractGamma del), sy /= '0']
 
 getCodedTrans :: String -> [String]
-getCodedTrans [] = [[]]
-getCodedTrans ss = (take n ss) : (getCodedTrans (drop n ss)) where n = getNextInd ss 0
+getCodedTrans [] = []
+getCodedTrans ss = let (x1, x2) = getCodedTransAux [] ss
+                    in x1:(getCodedTrans x2)
 
-getNextInd :: String -> Int -> Int
-getNextInd [] _ = 0
-getNextInd ('0':'0':_) n = n + 1
-getNextInd (_:xs) n = getNextInd xs (n + 1)
+getCodedTransAux :: String -> String -> (String, String)
+getCodedTransAux sx []= (sx, "")
+getCodedTransAux sx ('0':'0':xs) = (sx++['0'], '0':xs) 
+getCodedTransAux sx (x:xs) = getCodedTransAux (sx++[x]) xs
 
 decodeTrans :: String -> Trans
-decodeTrans s = 
-    let (xs1, xs2, xs3, xs4, xs5) = splitState s
-    in ((decodeState xs1, decodeSymb xs2), (decodeState xs3, decodeSymb xs4, decodeDir xs5))
+decodeTrans str = 
+    let (xs1, xs2, xs3, xs4, xs5) = splitTrans str
+    in ((decodeState xs1, decodeSymbol xs2), (decodeState xs3, decodeSymbol xs4, decodeDir xs5))
 
+-- Parte una cadena que codifica a una transición en sus diferentes partes
+splitTrans :: String -> (String, String, String, String, String)
+splitTrans str = tuple5 (getParts str)
 
-splitState :: String -> (String, String, String, String, String)
-splitState s = 
-    let (_, ini) = getNext s 
-    in let (s1, xs1) = getNext ini 
-        in let (s2, xs2) = getNext xs1 
-            in let (s3, xs3) = getNext xs2 
-                in let (s4, xs4) = getNext xs3 
-                    in let (s5, _) = getNext xs4 
-                        in (s1, s2, s3, s4, s5)
+tuple5 :: [a] -> (a, a, a, a, a)
+tuple5 [a1, a2, a3, a4, a5] = (a1, a2, a3, a4, a5)
+tuple5 _ = error "lista no 5-tuplificable"
+
+getParts :: String -> [String]
+getParts [] = []
+getParts ss = let (x1, x2) = getPartsAux [] ss
+                    in [str | str <- x1:(getParts x2), str /= ""]
+
+getPartsAux :: String -> String -> (String, String)
+getPartsAux sx "" = (sx, "")
+getPartsAux sx ('0':xs) = (sx,xs) 
+getPartsAux sx (x:xs) = getPartsAux (sx++[x]) xs
 
 decodeState :: String -> State
-decodeState st = (length st) - 1
+decodeState st = Q ((length st) - 1)
 
-decodeSymb :: String -> Symb
-decodeSymb s = chr ((length s) + 47) -- caracteres en ASCII a partir de '0'
+-- caracteres en ASCII a partir de '1'
+-- '0' está reservado para el blanco
+decodeSymbol :: String -> Symbol
+decodeSymbol str = chr ((length str) + 48) 
 
 decodeDir :: String -> Dir
 decodeDir "1" = Der
 decodeDir "11" = Izq
 decodeDir "111" = Est
 decodeDir _ = error "estado invalido"
-
-getNext :: String -> (String, String)
-getNext s = getNextTail s []
-
-getNextTail :: String -> String -> (String, String)
-getNextTail _ []= error "no hay siguiente"
-getNextTail sx ('0':xs) = (sx, xs) 
-getNextTail sx (x:xs) = getNextTail (sx++[x]) xs
 
 -- Auxiliares
 -- Si es subconjunto
@@ -175,43 +241,49 @@ subset (x:xs) ys
     | elem x ys = subset xs ys
     | otherwise = False
 
--- Sacar componentes de la máquina
-getStates :: MaqT -> [State]
-getStates (st, _, _, _, _, _, _) = st
-
-getGamma :: MaqT -> Alf
-getGamma (_, g, _, _, _, _, _) = g
-
-getBlank :: MaqT -> Symb
-getBlank (_, _, b, _, _, _, _) = b
-
-getSigma :: MaqT -> Alf
-getSigma (_, _, _, s, _, _, _) = s
-
-getInit :: MaqT -> State
-getInit (_, _, _, _, ini, _, _) = ini
-
-getFinal :: MaqT -> [State]
-getFinal (_, _, _, _, _, f, _) = f
-
-getDelta :: MaqT -> Delta
-getDelta (_, _, _, _, _, _, d) = d
-
-
--- Restricciones entre los diferentes componentes de MaqT que no se puede
--- restringir solo con el tipo
-valida :: MaqT -> Bool
-valida (st, gam, b, eps, ini, fin, _) =
-    elem b gam && not (elem b eps) && elem ini st && subset eps gam && subset fin st
-
 -- Obtner el símbolo en la n-ésima posición.
-getSymb :: String -> Int -> Symb -> Symb
-getSymb s n b
-    | n < 0 || n > length s = b
-    | otherwise = s !! n
+getSymbol :: Tape -> Int -> Symbol -> (Symbol, Tape)
+getSymbol t n blank
+    | indx < 0 =  getSymbol (addToTape t indx blank) n blank 
+    | indx >= l = getSymbol (addToTape t (indx - l + 1) blank) n blank
+    | otherwise = ((tp t) !! indx, t)
+    where indx = n + (z t); l = length(tp t)
 
--- Escirbir el símbolo en la n-ésima posición.
-writeSymb :: Symb -> String -> Int -> String
-writeSymb s ss n
-    | n < 0 || n > length ss = error "posición fuera de rango"
-    | otherwise = (take n ss) ++ [s] ++ (drop (n+1) ss)
+-- Escribir el símbolo en la n-ésima posición.
+writeSymbol :: Tape -> Int -> Symbol -> Symbol-> Tape
+writeSymbol t n sym blank
+    | indx < 0 = writeSymbol (addToTape t indx blank) n sym blank 
+    | indx >= l = writeSymbol (addToTape t (indx - l) blank) n sym blank
+    | otherwise = T {tp = ns, z = (z t)}
+    where indx = n + (z t); l = length (tp t); 
+            ns = (take indx (tp t)) ++ [sym] ++ (drop (indx+1) (tp t))
+
+addToTape :: Tape -> Int -> Symbol -> Tape
+addToTape t n sy
+    | n < 0 = let nchunk = replicate (-n) sy in T {tp = nchunk ++ (tp t), z = (z t) - n}
+    | otherwise = let nchunk = replicate n sy in T {tp = (tp t) ++ nchunk, z = (z t)}
+
+
+{--enumTrans :: Delta -> [State] -> Alf -> [Trans]
+enumTrans del qs alf = foldr (\x xs -> enumTransAux del x xs) [] [(p, sy) | p <- qs, sy <- alf]
+
+enumTransAux :: Delta -> (State, Symbol) -> [Trans] -> [Trans]
+enumTransAux del (p, sy) ts = 
+    let r = del p sy
+        in case r of
+            Nothing -> ts
+            Just t -> (t:ts)--}
+-- Si una lista de tuplas representa una función
+isFunc :: (Eq a, Eq b) => [(a, b)] -> Bool
+isFunc [] = True
+isFunc  ((xi, _):xs) = 
+    let r = evalFunc xs xi in
+        case r of
+            Nothing -> True
+            Just _ -> False
+
+evalFunc :: (Eq a, Eq b) => [(a, b)] -> a -> Maybe b
+evalFunc [] _ = Nothing
+evalFunc ((xi, xf):xs) x
+    | xi == x = Just xf
+    | otherwise =  evalFunc xs xi
