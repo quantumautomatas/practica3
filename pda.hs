@@ -1,4 +1,5 @@
 module PDA where
+    import Data.List
 
     -- Tipo de dato algebraico para simular los estados de un autómata
     data State = Q Int deriving(Show, Eq)
@@ -6,9 +7,10 @@ module PDA where
     -- Sinónimos para símbolos y alfabetos
     type Symbol = Char
     type Alphabet = [Symbol]
+    data Sigma = S Symbol | E
     
     -- Sinónimo para la función de transición
-    type Delta = State -> Symbol -> Symbol -> [(State, [Symbol])]
+    type Delta = (State, Sigma, Symbol) -> [(State, [Symbol])]
     
     -- Autómata de pila: PDA = <Q, S, G, d, q0, Z0, F>
     data Automata = PDA {
@@ -26,6 +28,7 @@ module PDA where
     
     -- Comportamientos para la pila
     pop :: Stack -> Stack
+    pop [] = []
     pop xs = tail xs
     
     push :: Stack -> Symbol -> Stack
@@ -33,8 +36,7 @@ module PDA where
     push stck a = [a]++stck
     
     multipush :: Stack -> [Symbol] -> Stack
-    multipush stk [] = stk
-    multipush stk (x:xs) = multipush (push stk x) xs
+    multipush stk ns = ns ++ stk
     
     -- Sinónimo para la Máquina
     type Machine = (Automata, Stack)
@@ -43,31 +45,77 @@ module PDA where
     type Config = (State, String, Stack)
     
     -- Función para procesar cadenas
-    -- compute :: Machine -> String -> [[Config]]
-    -- compute (_,_) "" = []
-    -- compute (atm, stck) str = 
+    compute :: Machine -> String -> [[Config]]
+    compute (au, stk) str = computeAux [[(q0 au, str, push stk (z0 au))]] au
+
+    computeAux:: [[Config]] -> Automata -> [[Config]]
+    computeAux cs a = 
+        let (tc, ht) = decideCompute cs a
+            in case tc of
+                [] -> cs
+                _ -> ht ++ (computeAux tc a)
+
+    decideCompute :: [[Config]] -> Automata -> ([[Config]], [[Config]])
+    decideCompute cs a = 
+        let fo = filter (\x -> [x] == step x (d a)) cs
+            in (foldr (union) [] (map (\x -> step x (d a)) (cs \\ fo)), fo)
     
     -- stepEdo :: Config -> Delta -> State
     -- stepEdo (edo, str, c_stck) delta = head (delta edo (head str) (head c_stck))
     
     -- Función que realiza un solo paso de computo
-    -- step :: Config -> Delta -> Config
-    -- step (edo, str, c_stck) d = 
+    step :: [Config] -> Delta -> [[Config]]
+    step [] _ = error "configuración vacía"
+    step (c@(_, _, ""):cs) _ = [c:cs]
+    step (c@(p, "", (sk:sks)):cs) del = 
+        [(buildConfigEps (p, "", pop (sk:sks)) rd):c:cs | rd <- (del (p, E, sk))]
+    step (c@(p, (sy:ss), (sk:sks)):cs) del = 
+        union [(buildConfigEps (p, (sy:ss), pop (sk:sks)) rd):c:cs | rd <- (del (p, E, sk))]
+        [(buildConfig (p, (sy:ss), pop (sk:sks)) rd):c:cs | rd <- (del (p, S sy, sk))] 
+
+    
+    -- Función que obtiene la configuración dado el resultado de la evaluación de
+    -- una función de transición cuando sí se consumen símbolos de la cadena.
+    buildConfig :: Config -> (State, [Symbol]) -> Config
+    buildConfig (_, _, []) (_, []) = error "configuración inválida"
+    buildConfig (_, "", _) _ = error "configuración inválida"
+    buildConfig (_, (_:ss), stk) (p, []) = (p, ss, pop stk)
+    buildConfig (_, (_:ss), stk) (p, nstk) = (p, ss, multipush stk nstk)
+
+    -- Función que obtiene la configuración dado el resultado de la evaluación de
+    -- una función de transición cuando no se consumen símbolos de la cadena
+    -- (epsilon-transiciones).
+    buildConfigEps :: Config -> (State, [Symbol]) -> Config
+    buildConfigEps (_, _, "") _ = error "configuración inválida"
+    buildConfigEps (_, str, stk) (p, []) = (p, str, pop stk)
+    buildConfigEps (_, str, stk) (p, nstk) = (p, str, multipush stk nstk)
+
+
+    -- Funcion que indica si un autómata de pila acepta por pila vacía
+    acceptByStack :: Machine -> String -> Bool
+    acceptByStack m str = elem "" [st | (_, _, st):_ <- compute m str]
+
+    -- Funcion que indica si un autómata de pila acepta por estado final
+    acceptByState :: Machine -> String -> Bool
+    acceptByState m@(a, _) str = 
+        intersect (f a) fc /= []
+        where fc = [p | (p, _, _):_ <- compute m str]
     
     -- Ejemplo
     delta1 :: Delta
-    delta1 (Q 0) 'a' 'Z' = [((Q 1), "AZ"), ((Q 4), "Z")]
-    delta1 (Q 1) 'a' 'A' = [((Q 1), "AA")]
-    delta1 (Q 1) 'b' 'A' = [((Q 2), "ε")]
-    delta1 (Q 2) 'b' 'A' = [((Q 2), "ε")]
-    delta1 (Q 2) 'c' 'Z' = [((Q 3), "Z")]
-    delta1 (Q 3) 'c' 'Z' = [((Q 3), "Z")]
-    delta1 (Q 4) 'a' 'Z' = [((Q 4), "Z")]
-    delta1 (Q 4) 'b' 'Z' = [((Q 5), "BZ")]
-    delta1 (Q 5) 'b' 'B' = [((Q 5), "BB")]
-    delta1 (Q 5) 'c' 'B' = [((Q 6), "ε")]
-    delta1 (Q 6) 'c' 'B' = [((Q 6), "ε")]
-    delta1 (Q 6) 'ε' 'Z' = [((Q 7), "Z")]
+    delta1 (Q 0, S 'a', 'Z') = [(Q 1, "AZ"), (Q 4, "Z")]
+    delta1 (Q 1, S 'a', 'A') = [(Q 1, "AA")]
+    delta1 (Q 1, S 'b', 'A') = [(Q 2, [])]
+    delta1 (Q 2, S 'b', 'A') = [(Q 2, [])]
+    delta1 (Q 2, S 'c', 'Z') = [(Q 3, "Z")]
+    delta1 (Q 3, S 'c', 'Z') = [(Q 3, "Z")]
+    delta1 (Q 4, S 'a', 'Z') = [(Q 4, "Z")]
+    delta1 (Q 4, S 'b', 'Z') = [(Q 5, "BZ")]
+    delta1 (Q 5, S 'b', 'B') = [(Q 5, "BB")]
+    delta1 (Q 5, S 'c', 'B') = [(Q 6, [])]
+    delta1 (Q 6, S 'c', 'B') = [(Q 6, [])]
+    delta1 (Q 6, E , 'Z') = [(Q 7, "Z")]
+    delta1 _ = []
     
     pda1 = PDA {
         q = [(Q 0), (Q 1), (Q 2), (Q 3), (Q 4), (Q 5), (Q 6), (Q 7)],
