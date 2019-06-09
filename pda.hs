@@ -27,14 +27,17 @@ module PDA where
     type Stack = [Symbol]
     
     -- Comportamientos para la pila
+    -- Sacar el símbolo al tope
     pop :: Stack -> Stack
     pop [] = []
     pop xs = tail xs
     
+    -- Agregar un símbolo al tope
     push :: Stack -> Symbol -> Stack
     push [] a   = [a]
     push stck a = [a]++stck
     
+    -- Agregar múltiples símbolos a la pila
     multipush :: Stack -> [Symbol] -> Stack
     multipush stk ns = ns ++ stk
     
@@ -48,6 +51,7 @@ module PDA where
     compute :: Machine -> String -> [[Config]]
     compute (au, stk) str = computeAux [[(q0 au, str, push stk (z0 au))]] au
 
+    -- Función para procesar cadenas, con recursión de cola
     computeAux:: [[Config]] -> Automata -> [[Config]]
     computeAux cs a = 
         let (tc, ht) = decideCompute cs a
@@ -55,6 +59,15 @@ module PDA where
                 [] -> cs
                 _ -> ht ++ (computeAux tc a)
 
+    -- Toma una lista de procesamientos de cadenas [[Config]], y las divide en 
+    -- dos grupos:
+    -- -Aquellas donde ya no hay caminos posibles para continuar la ejecución
+    -- -Aquellas donde aún hay caminos posibles para continuar
+    -- Luego, en el caso de las lista donde aún es posible continuar, genera dichos
+    -- posibles caminos.
+    -- Y devuelve dos listas:
+    -- - Las nuevas listas de configuración
+    -- - Las antiguas listas de configuración que no pueden ser continuadas.
     decideCompute :: [[Config]] -> Automata -> ([[Config]], [[Config]])
     decideCompute cs a = 
         let fo = filter (\x -> [x] == step x (d a)) cs
@@ -64,6 +77,8 @@ module PDA where
     -- stepEdo (edo, str, c_stck) delta = head (delta edo (head str) (head c_stck))
     
     -- Función que realiza un solo paso de computo
+    -- Esto es, que toma un procesamiento de una cadena, y obtiene todos las
+    -- posibles opciones para continuar ese procesamiento
     step :: [Config] -> Delta -> [[Config]]
     step [] _ = error "configuración vacía"
     step (c@(_, _, ""):cs) _ = [c:cs]
