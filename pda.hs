@@ -131,18 +131,19 @@ module PDA where
 
     El autómata propuesto gráficamente se ve de la siguiente forma
 
+              a,Z/AZ
               a,A/AA       b,A/ϵ          c,Z/Z
-              _____        ____          ____
+              _____ ϵ,Z/Z  ____  ϵ,Z/Z   ____
               \   / b,A/ϵ  \  /  c,Z/Z   \   /
                q1 ------->  q2  ------->  |q3|
               />
              /
-    a,Z/AZ  /
+    ϵ,Z/Z  /
            /
        >|q0|
          \
           \
-    a,Z/Z  \
+    ϵ,Z/Z  \    ϵ,Z/Z       ϵ,Z/Z
             \>  b,Z/BZ      c,B/ϵ       ϵ,Z/Z
             q4 -------> q5 -------> q6 -------> |q7|
            /  \        /  \        /  \
@@ -152,16 +153,21 @@ module PDA where
     --}
     -- Autómata que acepta a L = {a^nb^m^ck | n = m o m = k}
     delta1 :: Delta
-    delta1 (Q 0, S 'a', 'Z') = [(Q 1, "AZ"), (Q 4, "Z")]
+    delta1 (Q 0, E, 'Z') = [(Q 1, "Z"), (Q 4, "Z")]
     delta1 (Q 1, S 'a', 'A') = [(Q 1, "AA")]
+    delta1 (Q 1, S 'a', 'Z') = [(Q 1, "AZ")]
+    delta1 (Q 1, E, 'Z') = [(Q 2, "Z")]
     delta1 (Q 1, S 'b', 'A') = [(Q 2, [])]
     delta1 (Q 2, S 'b', 'A') = [(Q 2, [])]
     delta1 (Q 2, S 'c', 'Z') = [(Q 3, "Z")]
+    delta1 (Q 2, E, 'Z') = [(Q 3, "Z")]
     delta1 (Q 3, S 'c', 'Z') = [(Q 3, "Z")]
     delta1 (Q 4, S 'a', 'Z') = [(Q 4, "Z")]
     delta1 (Q 4, S 'b', 'Z') = [(Q 5, "BZ")]
+    delta1 (Q 4, E, 'Z') = [(Q 5, "Z")]
     delta1 (Q 5, S 'b', 'B') = [(Q 5, "BB")]
     delta1 (Q 5, S 'c', 'B') = [(Q 6, [])]
+    delta1 (Q 5, E, 'Z') = [(Q 6, "Z")]
     delta1 (Q 6, S 'c', 'B') = [(Q 6, [])]
     delta1 (Q 6, E , 'Z') = [(Q 7, "Z")]
     delta1 _ = []
