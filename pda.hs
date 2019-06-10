@@ -56,7 +56,7 @@ module PDA where
     computeAux cs a = 
         let (tc, ht) = decideCompute cs a
             in case tc of
-                [] -> cs
+                [] -> ht
                 _ -> ht ++ (computeAux tc a)
 
     -- Toma una lista de procesamientos de cadenas [[Config]], y las divide en 
@@ -70,7 +70,7 @@ module PDA where
     -- - Las antiguas listas de configuración que no pueden ser continuadas.
     decideCompute :: [[Config]] -> Automata -> ([[Config]], [[Config]])
     decideCompute cs a = 
-        let fo = filter (\x -> [x] == step x (d a)) cs
+        let fo = filter (\x -> let st = (step x (d a)) in [x] == st || st == []) cs
             in (foldr (union) [] (map (\x -> step x (d a)) (cs \\ fo)), fo)
     
     -- stepEdo :: Config -> Delta -> State
@@ -83,10 +83,10 @@ module PDA where
     step [] _ = error "configuración vacía"
     step (c@(_, _, ""):cs) _ = [c:cs]
     step (c@(p, "", (sk:sks)):cs) del = 
-        [(buildConfigEps (p, "", pop (sk:sks)) rd):c:cs | rd <- (del (p, E, sk))]
+        [(buildConfigEps (p, "", (sk:sks)) rd):c:cs | rd <- (del (p, E, sk))]
     step (c@(p, (sy:ss), (sk:sks)):cs) del = 
-        union [(buildConfigEps (p, (sy:ss), pop (sk:sks)) rd):c:cs | rd <- (del (p, E, sk))]
-        [(buildConfig (p, (sy:ss), pop (sk:sks)) rd):c:cs | rd <- (del (p, S sy, sk))] 
+        [(buildConfigEps (p, (sy:ss), (sk:sks)) rd):c:cs | rd <- (del (p, E, sk))]
+        ++[(buildConfig (p, (sy:ss), (sk:sks)) rd):c:cs | rd <- (del (p, S sy, sk))] 
 
     
     -- Función que obtiene la configuración dado el resultado de la evaluación de
@@ -95,7 +95,7 @@ module PDA where
     buildConfig (_, _, []) (_, []) = error "configuración inválida"
     buildConfig (_, "", _) _ = error "configuración inválida"
     buildConfig (_, (_:ss), stk) (p, []) = (p, ss, pop stk)
-    buildConfig (_, (_:ss), stk) (p, nstk) = (p, ss, multipush stk nstk)
+    buildConfig (_, (_:ss), stk) (p, nstk) = (p, ss, multipush (pop stk) nstk)
 
     -- Función que obtiene la configuración dado el resultado de la evaluación de
     -- una función de transición cuando no se consumen símbolos de la cadena
@@ -103,7 +103,7 @@ module PDA where
     buildConfigEps :: Config -> (State, [Symbol]) -> Config
     buildConfigEps (_, _, "") _ = error "configuración inválida"
     buildConfigEps (_, str, stk) (p, []) = (p, str, pop stk)
-    buildConfigEps (_, str, stk) (p, nstk) = (p, str, multipush stk nstk)
+    buildConfigEps (_, str, stk) (p, nstk) = (p, str, multipush (pop stk) nstk)
 
 
     -- Funcion que indica si un autómata de pila acepta por pila vacía
