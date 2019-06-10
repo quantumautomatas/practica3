@@ -108,7 +108,7 @@ module PDA where
 
     -- Funcion que indica si un autómata de pila acepta por pila vacía
     acceptByStack :: Machine -> String -> Bool
-    acceptByStack m str = elem "" [st | (_, _, st):_ <- compute m str]
+    acceptByStack m str = elem "" [stk | (_, _, stk):_ <- compute m str]
 
     -- Funcion que indica si un autómata de pila acepta por estado final
     acceptByState :: Machine -> String -> Bool
@@ -117,6 +117,7 @@ module PDA where
         where fc = [p | (p, _, _):_ <- compute m str]
     
     -- Ejemplo
+    -- Autómata que acepta a L = {a^nb^m^ck | n = m o m = k}
     delta1 :: Delta
     delta1 (Q 0, S 'a', 'Z') = [(Q 1, "AZ"), (Q 4, "Z")]
     delta1 (Q 1, S 'a', 'A') = [(Q 1, "AA")]
@@ -132,6 +133,7 @@ module PDA where
     delta1 (Q 6, E , 'Z') = [(Q 7, "Z")]
     delta1 _ = []
     
+    pda1 :: Automata
     pda1 = PDA {
         q = [(Q 0), (Q 1), (Q 2), (Q 3), (Q 4), (Q 5), (Q 6), (Q 7)],
         s = ['a', 'b', 'c'],
@@ -141,4 +143,8 @@ module PDA where
         z0 = 'Z',
         f = [(Q 0), (Q 3), (Q 7)]
     }
+
+    -- Procesamiento formal de la cadena "aabbcc"
+    fm'aabbcc':: [[Config]]
+    fm'aabbcc' = compute (pda1, []) "aabbcc"
     
