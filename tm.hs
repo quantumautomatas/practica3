@@ -72,6 +72,8 @@ accept mt str = elem qk (f mt) where (qk, _, _):_ = compute mt str
 encode :: MaqT -> String
 encode mt = foldr (\x xs -> x ++ xs) "" (map (encodeTrans (q mt) (g mt)) (enumTrans (d mt) (q mt) (g mt)))
 
+-- Codifica una transición. Para esto, requiere de la lista de estados y la
+-- lista de símbolos, para saber su posición y en base a eso darles un valor.
 encodeTrans :: [State] -> Alf -> Trans -> String
 encodeTrans qs gs ((p, str), (q', ns, dir)) = 
     "0"++(enc p qs)++"0"++ (enc str gs)++"0"++ (enc q' qs)++"0"++ (enc ns gs) ++ "0" ++ k ++"0"
@@ -81,6 +83,7 @@ encodeTrans qs gs ((p, str), (q', ns, dir)) =
                 Der -> "1"
                 Est -> "111"
 
+-- Codifica un elemento de una lista en base a su posición en la lista.
 enc :: (Eq a) => a -> [a] -> String
 enc a as = 
     let r = elemIndex a as
@@ -165,35 +168,50 @@ extractGamma del = foldr (\((_, str), (_, ns, _)) xs -> union (union [str] [ns])
 extractSigma :: [Trans] -> Alf
 extractSigma del = [sy | sy <- (extractGamma del), sy /= '0']
 
+-- Toma una codificación de una máquina de Turing y devuelve las cadenas
+-- que representan la codificación de las transiciones de la máquina.
+-- Hace un 'split' donde encuentre dos '0'.
 getCodedTrans :: String -> [String]
 getCodedTrans [] = []
 getCodedTrans ss = let (x1, x2) = getCodedTransAux [] ss
                     in x1:(getCodedTrans x2)
 
+-- Toma una codificación de una máquina de Turing y devuelve dos cadenas.
+-- La primera representa la siguiente transición codificada, y la otra es todo
+-- lo que sobra de la codificación.
 getCodedTransAux :: String -> String -> (String, String)
 getCodedTransAux sx []= (sx, "")
 getCodedTransAux sx ('0':'0':xs) = (sx++['0'], '0':xs) 
 getCodedTransAux sx (x:xs) = getCodedTransAux (sx++[x]) xs
 
+-- Dada la codificación de una transición, obtiene la transición
 decodeTrans :: String -> Trans
 decodeTrans str = 
     let (xs1, xs2, xs3, xs4, xs5) = tuple5 (getParts str)
     in ((decodeState xs1, decodeSymbol xs2), (decodeState xs3, decodeSymbol xs4, decodeDir xs5))
 
+-- Toma una lista de exactamente 5 elementos y devuelve una tupla con esos cinco
+-- elementos
 tuple5 :: [a] -> (a, a, a, a, a)
 tuple5 [a1, a2, a3, a4, a5] = (a1, a2, a3, a4, a5)
 tuple5 _ = error "lista no 5-tuplificable"
 
+-- Toma una codifiación de una cadena y devuelve una lista con las partes de la 
+-- transición en orden [estado, símbolo, estado, símbolo, dirección]
 getParts :: String -> [String]
 getParts [] = []
 getParts ss = let (x1, x2) = getPartsAux [] ss
                     in [str | str <- x1:(getParts x2), str /= ""]
 
+-- Toma la codificación de una transición (o parte de ella) y devuelve dos cadenas.
+-- La primera es la siguiente parte de la transición (estados, símbolo o direcciones)
+-- y la segunda es el resto de lo que queda de la codificación.
 getPartsAux :: String -> String -> (String, String)
 getPartsAux sx "" = (sx, "")
 getPartsAux sx ('0':xs) = (sx,xs) 
 getPartsAux sx (x:xs) = getPartsAux (sx++[x]) xs
 
+-- Obtener un estado dada su codificación
 decodeState :: String -> State
 decodeState st = Q ((length st) - 1)
 
@@ -202,6 +220,7 @@ decodeState st = Q ((length st) - 1)
 decodeSymbol :: String -> Symbol
 decodeSymbol str = chr ((length str) + 47) 
 
+-- Obtener una dirección dada su codificación
 decodeDir :: String -> Dir
 decodeDir "1" = Der
 decodeDir "11" = Izq
@@ -233,6 +252,7 @@ writeSymbol t n sym blank
     | otherwise = ((take n t) ++ [sym] ++ (drop (n+1) t), n)
     where l = length t
 
+-- Alarga una cadena para simular que es infinita
 addToTape :: String -> Int -> Symbol -> String
 addToTape t n sy
     | n < 0 = replicate (-n) sy ++ t
@@ -242,6 +262,9 @@ addToTape t n sy
 enumTrans :: Delta -> [State] -> Alf -> [Trans]
 enumTrans del qs alf = foldr (\x xs -> enumTransAux del x xs) [] [(p, sy) | p <- qs, sy <- alf]
 
+-- Intenta evaluar una posible entrada en una función parcial.
+-- Si existen, la agrega a la enumeración.
+-- Si no, no hace nada.
 enumTransAux :: Delta -> (State, Symbol) -> [Trans] -> [Trans]
 enumTransAux del p'sy ts = 
     let r = del p'sy
