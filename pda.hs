@@ -7,6 +7,9 @@ module PDA where
     -- Sinónimos para símbolos y alfabetos
     type Symbol = Char
     type Alphabet = [Symbol]
+
+    -- Tipo de datos para la entrada de la función de transición.
+    -- Puede ser un símbolo (S Symbol) o la cadena vacía (E).
     data Sigma = S Symbol | E
     
     -- Sinónimo para la función de transición
