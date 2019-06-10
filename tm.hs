@@ -17,20 +17,20 @@ data Dir = Izq | Der | Est deriving (Eq)
 type Alf = [Symbol]
 
 -- Sinónimo para las transiciones
-type Trans = ((State, Symbol), (State, Symbol, Dir)) 
+type Trans = ((State, Symbol), (State, Symbol, Dir))
 
 -- Sinónimo para la función de transición
 type Delta = (State, Symbol) -> Maybe (State, Symbol, Dir)
 
 -- Tipo de máquina de Turing
 data MaqT = MT {q::[State], s::Alf, g::Alf, d::Delta, b::Symbol, q0::State, f::[State]}
--- q: conjunto de estados
--- s: alfabeto del lenguaje
--- g: alfabeto de la cinta
--- d: función de transición
--- q0: estado inicial
--- b: símbolo en blanco
--- f: conjunto de estados finales
+-- q: Conjunto de estados
+-- s: Alfabeto del lenguaje
+-- g: Alfabeto de la cinta
+-- d: Función de transición
+-- q0: Estado inicial
+-- b: Símbolo en blanco
+-- f: Conjunto de estados finales
 
 --2. Definir la función compute que recibe una MaqT, una cadena e imprime
 --el procesamiento formal de la cadena con configuraciones.
@@ -52,7 +52,7 @@ deltaGen mt conf@((qn, t, n):_) =
             Nothing -> conf -- Si no hay transición, acaba y devuelve la lista acumulada
             Just (qn', ns, dir) -> deltaGen mt ((qn', nnnt, nnnni):conf) -- Si
                 where nni = case dir of -- hay transición, se agrega la
-                            Izq -> ni - 1 -- configuración asociada a la lista y 
+                            Izq -> ni - 1 -- configuración asociada a la lista y
                             Der -> ni + 1 -- se sigue computando
                             Est -> ni
                       ; (nnt, _) = (writeSymbol nt ni ns (b mt)) -- Escribiendo símbolo en la cinta
@@ -75,9 +75,9 @@ encode mt = foldr (\x xs -> x ++ xs) "" (map (encodeTrans (q mt) (g mt)) (enumTr
 -- Codifica una transición. Para esto, requiere de la lista de estados y la
 -- lista de símbolos, para saber su posición y en base a eso darles un valor.
 encodeTrans :: [State] -> Alf -> Trans -> String
-encodeTrans qs gs ((p, str), (q', ns, dir)) = 
+encodeTrans qs gs ((p, str), (q', ns, dir)) =
     "0"++(enc p qs)++"0"++ (enc str gs)++"0"++ (enc q' qs)++"0"++ (enc ns gs) ++ "0" ++ k ++"0"
-    where k = 
+    where k =
             case dir of
                 Izq -> "11"
                 Der -> "1"
@@ -85,11 +85,11 @@ encodeTrans qs gs ((p, str), (q', ns, dir)) =
 
 -- Codifica un elemento de una lista en base a su posición en la lista.
 enc :: (Eq a) => a -> [a] -> String
-enc a as = 
+enc a as =
     let r = elemIndex a as
     in case r of
         Nothing -> ""
-        Just n -> replicate (n+1) '1' 
+        Just n -> replicate (n+1) '1'
 
 
 --5. Utilizando el tipo de dato algebraico MaqT definir la máquina de Turing
@@ -101,6 +101,32 @@ enc a as =
 -- q2: busca la primera 'c' y la marca
 -- q3: se regresa en la cadena hasta la primera 'a' que encuentre
 -- q4: recorre la cadena revisando que todos los símbolo estén marcados
+
+{--
+La máquina de Turing se ve graficamente de la siguiente forma
+
+              X/X,->
+              a/a,->
+              _____
+              \   /
+               q1  \
+      a/X,->  />     \
+            /          \ b/X,->
+X/X,->__   /             \     __
+    /   \ /               \>  /  \ X/X,->
+    \__ >|q0|                q2   \ b/b,->
+         \>    \>  a/a,-      /\__/
+          \      \          /
+   _/_,-   \        \      / c,X/-
+            \    _/_,->      \</
+            q4 <------- q3
+           /  \        /  \
+          /____\      /____\
+          X,X/->      X/X,<-
+                      b/b,<-
+--}
+
+
 
 delta :: Delta
 delta (Q 0, 'X') = Just (Q 0, 'X', Der)
@@ -147,13 +173,13 @@ decode :: String -> MaqT
 decode str = let enDel = map decodeTrans (getCodedTrans str)
             in MT {
                     q = union (extractStates enDel) [Q 0, Q 1], -- q0 y q1 siempre presentes
-                    s = extractSigma enDel, 
+                    s = extractSigma enDel,
                     g = union (extractGamma enDel) ['0'], -- siempre el blanco
                     d = evalFunc enDel,
                     b = '0',
-                    q0 = Q 0, 
+                    q0 = Q 0,
                     f = [Q 1]
-                }                           
+                }
 
 -- Sacando los estado desde la función de transición
 extractStates :: [Trans] -> [State]
@@ -181,12 +207,12 @@ getCodedTrans ss = let (x1, x2) = getCodedTransAux [] ss
 -- lo que sobra de la codificación.
 getCodedTransAux :: String -> String -> (String, String)
 getCodedTransAux sx []= (sx, "")
-getCodedTransAux sx ('0':'0':xs) = (sx++['0'], '0':xs) 
+getCodedTransAux sx ('0':'0':xs) = (sx++['0'], '0':xs)
 getCodedTransAux sx (x:xs) = getCodedTransAux (sx++[x]) xs
 
 -- Dada la codificación de una transición, obtiene la transición
 decodeTrans :: String -> Trans
-decodeTrans str = 
+decodeTrans str =
     let (xs1, xs2, xs3, xs4, xs5) = tuple5 (getParts str)
     in ((decodeState xs1, decodeSymbol xs2), (decodeState xs3, decodeSymbol xs4, decodeDir xs5))
 
@@ -196,7 +222,7 @@ tuple5 :: [a] -> (a, a, a, a, a)
 tuple5 [a1, a2, a3, a4, a5] = (a1, a2, a3, a4, a5)
 tuple5 _ = error "lista no 5-tuplificable"
 
--- Toma una codifiación de una cadena y devuelve una lista con las partes de la 
+-- Toma una codifiación de una cadena y devuelve una lista con las partes de la
 -- transición en orden [estado, símbolo, estado, símbolo, dirección]
 getParts :: String -> [String]
 getParts [] = []
@@ -208,7 +234,7 @@ getParts ss = let (x1, x2) = getPartsAux [] ss
 -- y la segunda es el resto de lo que queda de la codificación.
 getPartsAux :: String -> String -> (String, String)
 getPartsAux sx "" = (sx, "")
-getPartsAux sx ('0':xs) = (sx,xs) 
+getPartsAux sx ('0':xs) = (sx,xs)
 getPartsAux sx (x:xs) = getPartsAux (sx++[x]) xs
 
 -- Obtener un estado dada su codificación
@@ -218,7 +244,7 @@ decodeState st = Q ((length st) - 1)
 -- caracteres en ASCII a partir de '0'
 -- '0' siempre es el blanco
 decodeSymbol :: String -> Symbol
-decodeSymbol str = chr ((length str) + 47) 
+decodeSymbol str = chr ((length str) + 47)
 
 -- Obtener una dirección dada su codificación
 decodeDir :: String -> Dir
@@ -247,7 +273,7 @@ getSymbol t n blank
 -- Escribir el símbolo en la n-ésima posición.
 writeSymbol :: String -> Int -> Symbol -> Symbol -> (String, Int)
 writeSymbol t n sym blank
-    | n < 0 = writeSymbol (addToTape t n blank) 0 sym blank 
+    | n < 0 = writeSymbol (addToTape t n blank) 0 sym blank
     | n >= l = writeSymbol (addToTape t (n - l + 1) blank) n sym blank
     | otherwise = ((take n t) ++ [sym] ++ (drop (n+1) t), n)
     where l = length t
@@ -266,7 +292,7 @@ enumTrans del qs alf = foldr (\x xs -> enumTransAux del x xs) [] [(p, sy) | p <-
 -- Si existen, la agrega a la enumeración.
 -- Si no, no hace nada.
 enumTransAux :: Delta -> (State, Symbol) -> [Trans] -> [Trans]
-enumTransAux del p'sy ts = 
+enumTransAux del p'sy ts =
     let r = del p'sy
         in case r of
             Nothing -> ts
@@ -284,7 +310,7 @@ evalFunc ((xi, xf):xs) x
 -- restringir solo con el tipo
 valida :: MaqT -> Bool
 valida mt  =
-    elem (b mt) (g mt) && not (elem (b mt) (s mt)) && elem (q0 mt) (q mt) 
+    elem (b mt) (g mt) && not (elem (b mt) (s mt)) && elem (q0 mt) (q mt)
     && subset (s mt) (g mt) && subset (f mt) (q mt)
-    && subset (extractGamma (enumTrans (d mt) (q mt) (g mt))) (g mt) 
+    && subset (extractGamma (enumTrans (d mt) (q mt) (g mt))) (g mt)
     && subset (extractStates (enumTrans(d mt) (q mt) (g mt))) (q mt)
