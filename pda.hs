@@ -115,7 +115,7 @@ module PDA where
     y dice si la cadena es aceptada por el autómata de pila--}
     -- Funcion que indica si un autómata de pila acepta por pila vacía
     acceptByStack :: Machine -> String -> Bool
-    acceptByStack m str = elem "" [stk | (_, _, stk):_ <- compute m str]
+    acceptByStack m str = elem "" [stk | (_, ss, stk):_ <- compute m str, ss == ""]
 
     {--5. Definir la función acceptByEmptyState que recibe una Machine, una
     cadena y dice si la cadena es aceptada por el autómata de pila.--}
@@ -123,13 +123,13 @@ module PDA where
     acceptByState :: Machine -> String -> Bool
     acceptByState m@(a, _) str =
         intersect (f a) fc /= []
-        where fc = [p | (p, _, _):_ <- compute m str]
+        where fc = [p | (p, ss, _):_ <- compute m str, ss == ""]
 
     {--6. Utilizando el tipo de dato algebraico Machine definir el autómata de
     pila que acepte el lenguaje L = {a n b m c k | m = n o m = k} y mostrar la
     formalización de la cadena aabbcc
 
-    El autómata propuesto gráficamente se ve de la siguiente forma
+    El autómata propuesto acepta por estado finale y se ve de la siguiente forma
 
               a,Z/AZ
               a,A/AA       b,A/ϵ          c,Z/Z
